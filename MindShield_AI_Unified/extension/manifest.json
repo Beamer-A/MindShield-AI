@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "MindShield AI",
+  "version": "3.0.1",
+  "description": "Experimental local AI filtering for webpage images, text, and YouTube video scenes.",
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:5001/*",
+    "http://127.0.0.1:5055/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MindShield AI"
+  },
+  "options_page": "dashboard.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "video.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

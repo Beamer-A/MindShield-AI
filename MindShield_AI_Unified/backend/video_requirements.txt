@@ -1,0 +1,5 @@
+flask>=3.0,<4
+flask-cors>=4,<6
+pillow>=10,<13
+torch>=2.2
+transformers>=4.45,<5

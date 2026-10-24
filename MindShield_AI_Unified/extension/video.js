@@ -1,0 +1,34 @@
+(()=>{'use strict';if(window.__sceneSafe6)return;window.__sceneSafe6=true;
+const defaults={enabled:true,nudity:true,sexual:true,violence:true,gore:true,profanity:true,drugs:true,disturbing:true,autoskip:true,muteProfanity:true,sensitivity:'balanced',skipSeconds:5};
+let masterEnabled=true,pausedUntil=0;chrome.storage.local.get(['enabled','pausedUntil'],s=>{masterEnabled=s.enabled!==false;pausedUntil=s.pausedUntil||0});chrome.storage.onChanged.addListener(c=>{if(c.enabled)masterEnabled=c.enabled.newValue;if(c.pausedUntil)pausedUntil=c.pausedUntil.newValue});
+let cfg={...defaults},busy=false,lastRequest=0,lastVideo=null,lastSource='',lastPosition=0,lastTrigger=-100,lastCategory='',streak=0,records=[],mutedByUs=false,muteUntil=0;
+const box=document.createElement('section');box.id='ss6-overlay';box.style.cssText='position:fixed;bottom:18px;right:18px;z-index:2147483647;width:300px;max-height:55vh;overflow:auto;background:#0d1830ed;color:white;border:1px solid #7088dd;border-radius:13px;padding:12px;box-shadow:0 8px 35px #0008;font:12px/1.45 system-ui';
+box.innerHTML='<div style="display:flex;justify-content:space-between"><strong style="font-size:15px">🛡 MindShield AI · Video</strong><button id="ss6-toggle">−</button></div><div id="ss6-body"><div id="ss6-status">Initializing…</div><div id="ss6-scores" style="color:#b9cafa;font-size:11px;margin-top:4px"></div><div style="display:flex;gap:6px;margin-top:9px"><button id="ss6-history">History</button><button id="ss6-mark">Mark missed</button></div><div id="ss6-log" style="display:none;max-height:160px;overflow:auto;margin-top:8px"></div><div style="font-size:10px;color:#c1cbea;margin-top:8px">Experimental live analysis; scenes can appear before detection.</div></div>';
+document.documentElement.appendChild(box);const $=id=>box.querySelector('#'+id);for(const b of box.querySelectorAll('button'))b.style.cssText='border:0;border-radius:6px;background:#344c86;color:white;padding:5px 9px;cursor:pointer';
+$('ss6-toggle').onclick=()=>{const b=$('ss6-body');b.hidden=!b.hidden;$('ss6-toggle').textContent=b.hidden?'+':'−'};
+$('ss6-history').onclick=()=>{$('ss6-log').style.display=$('ss6-log').style.display==='none'?'block':'none';render()};
+$('ss6-mark').onclick=()=>{const v=video();if(v){records.push({t:v.currentTime,c:'Manual review marker'});render();status('Marked for review')}};
+function video(){return document.querySelector('#movie_player video.html5-main-video')||document.querySelector('video.html5-main-video')||document.querySelector('video')}
+function status(s){$('ss6-status').textContent=s}
+function time(t){return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')}
+function render(){$('ss6-log').replaceChildren();for(const x of records.slice(-40).reverse()){const d=document.createElement('div');d.style.cssText='border-bottom:1px solid #ffffff25;padding:4px';d.textContent=`${time(x.t)} — ${x.c}`;$('ss6-log').append(d)}}
+chrome.storage.local.get(null,s=>{cfg={...defaults,...Object.fromEntries(Object.keys(defaults).filter(k=>'video_'+k in s).map(k=>[k,s['video_'+k]]))};status(cfg.enabled?'Waiting for video':'Video protection disabled')});
+chrome.storage.onChanged.addListener((changes,area)=>{if(area!=='local')return;for(const [k,v] of Object.entries(changes)){if(k.startsWith('video_'))cfg[k.slice(6)]=v.newValue}streak=0});
+const badWords=/\b(fuck(?:ing|ed|er|s)?|shit(?:ty|s)?|bitch(?:es)?|asshole(?:s)?|motherfucker(?:s)?|bullshit|damn|crap)\b/i;
+function captions(){return [...document.querySelectorAll('.ytp-caption-segment')].map(e=>e.textContent).join(' ')}
+function resetMute(v){if(mutedByUs&&v){v.muted=false;mutedByUs=false}}
+function checkCaptions(v){if(!cfg.profanity||!cfg.enabled){resetMute(v);return}const line=captions();if(badWords.test(line)){if(cfg.muteProfanity&&!v.muted){v.muted=true;mutedByUs=true}muteUntil=Date.now()+900;if(Date.now()-lastTrigger>3500){lastTrigger=Date.now();records.push({t:v.currentTime,c:'Profanity in captions'});render();status('Profanity in captions'+(cfg.muteProfanity?' · muted':''))}}else if(mutedByUs&&Date.now()>muteUntil)resetMute(v)}
+function selectedCategory(scores){const selected=Object.entries(scores||{}).filter(([k])=>cfg[k]&&k!=='safe');if(!selected.length)return null;selected.sort((a,b)=>b[1]-a[1]);const [cat,score]=selected[0];const safe=Number(scores.safe||0);const margin=score-safe;const threshold={strict:-0.012,balanced:0.008,relaxed:0.035}[cfg.sensitivity]??0.008;return {cat,margin,flagged:margin>threshold}}
+async function tick(){const v=video();if(!cfg.enabled||!masterEnabled||Date.now()<pausedUntil){status('Monitoring OFF');resetMute(v);return}if(!v){status('No YouTube video found');return}if(v.ended){status('Video ended');return}if(v.paused){status('Video paused · press Play');resetMute(v);return}if(v.readyState<2){status('Waiting for video data');return}checkCaptions(v);if(document.hidden){status('Keep YouTube tab visible');return}
+const src=location.href+'|'+v.currentSrc;if(v!==lastVideo||src!==lastSource||Math.abs(v.currentTime-lastPosition)>9){streak=0;lastCategory='';lastVideo=v;lastSource=src}lastPosition=v.currentTime;
+if(busy||Date.now()-lastRequest<850)return;const r=v.getBoundingClientRect();if(r.width<150||r.height<100||r.bottom<0||r.top>innerHeight)return;
+lastRequest=Date.now();busy=true;const timestamp=v.currentTime;status('Analyzing current frame…');
+try{const out=await chrome.runtime.sendMessage({type:'videoAnalyze',crop:{x:r.left,y:r.top,width:r.width,height:r.height},viewport:{width:innerWidth,height:innerHeight}});if(!out?.ok)throw Error(out?.error||'AI request failed');const hit=selectedCategory(out.scores);if(!hit){status('No visual filters selected');return}
+$('ss6-scores').textContent=`${hit.cat}: margin ${hit.margin.toFixed(3)} · ${time(timestamp)} (relative score)`;
+if(hit.flagged){streak=lastCategory===hit.cat?streak+1:1;lastCategory=hit.cat}else{streak=0;lastCategory=''};
+const needed=cfg.sensitivity==='relaxed'?2:1;
+if(streak>=needed&&Date.now()-lastTrigger>1700){lastTrigger=Date.now();streak=0;const label=hit.cat;const skip=cfg.autoskip;records.push({t:timestamp,c:label+(skip?' · skipped':' · flagged')});if(records.length>200)records.shift();render();if(skip){const before=v.currentTime;const target=Math.min(Number.isFinite(v.duration)?Math.max(0,v.duration-0.15):Infinity,before+Number(cfg.skipSeconds||5));if(target>before){v.currentTime=target;v.dispatchEvent(new Event('timeupdate'));status('Skip requested: '+label+' · '+time(before)+' → '+time(target));setTimeout(()=>{if(v.currentTime<target-1.5)status('Skip blocked by player · try another video')},1100)}else status('At end of video · cannot skip')}else status('Flagged '+label+' · auto-skip off')}
+else status('Playing · '+(hit.flagged?'possible '+hit.cat:'no visual match'));
+}catch(e){status('AI error: '+String(e.message||e).slice(0,110))}finally{busy=false}}
+setInterval(tick,400);
+})();

@@ -1,0 +1,6 @@
+flask>=3.0,<4
+flask-cors>=4,<6
+transformers>=4.44,<5
+torch>=2.2
+pillow>=10
+sentencepiece>=0.2
