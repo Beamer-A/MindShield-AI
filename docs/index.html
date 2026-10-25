@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="MindShield AI is a student-built Chrome extension that uses AI to filter individual harmful content instead of blocking entire websites.">
+<link rel="icon" href="mindshield-icon.png">
+<style>html{-webkit-text-size-adjust:100%}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>MindShield AI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: single-column editorial scroll on a 1120px grid; full-bleed alternating bands,
+   inner wrapper carries the side gutter. Swiss restraint — rules and space, not shadows. */
+:root{
+  --bg:#F5FAFF;
+  --surface:#FFFFFF;
+  --ink:#14243D;
+  --ink-2:#4A5C77;
+  --ink-3:#7589A3;
+  --accent:#4285D4;
+  --accent-deep:#2F6CB4;
+  --tint:#E8F3FF;
+  --line:#D5E5F3;
+  --line-soft:#E6F0FA;
+  --g1:#8FE6D2; --g2:#7FB2F0; --g3:#A79CF4;
+  --video-ground:#0E1B2E; --video-fg:#FFFFFF; --video-sub:#9FB6D0;
+  --max:1120px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1626;
+    --surface:#111F33;
+    --ink:#EAF2FB;
+    --ink-2:#A9BDD4;
+    --ink-3:#7E93AD;
+    --accent:#6FA8E8;
+    --accent-deep:#9CC6F3;
+    --tint:#16283F;
+    --line:#22384F;
+    --line-soft:#1A2C43;
+    --video-ground:#08121F; --video-fg:#EAF2FB; --video-sub:#8FA6C0;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1626; --surface:#111F33; --ink:#EAF2FB; --ink-2:#A9BDD4; --ink-3:#7E93AD;
+  --accent:#6FA8E8; --accent-deep:#9CC6F3; --tint:#16283F; --line:#22384F; --line-soft:#1A2C43;
+  --video-ground:#08121F; --video-fg:#EAF2FB; --video-sub:#8FA6C0;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased;
+  font-feature-settings:"cv05" 1,"cv11" 1;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:60;background:var(--bg)}
+.wrap{max-width:var(--max);margin-inline:auto;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+section{padding-block:clamp(56px,8vw,104px);scroll-margin-top:78px}
+.band{background:var(--surface);border-block:1px solid var(--line-soft)}
+
+h1,h2,h3,h4{margin:0;text-wrap:balance;letter-spacing:-0.025em;line-height:1.12;font-weight:800}
+h1{font-size:clamp(2.1rem,5.2vw,3.7rem)}
+h2{font-size:clamp(1.65rem,3.6vw,2.6rem)}
+h3{font-size:1.05rem;font-weight:700;letter-spacing:-0.012em;line-height:1.3}
+p{margin:0}
+a{color:var(--accent);text-decoration:none}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.lede{color:var(--ink-2);font-size:clamp(1rem,1.6vw,1.14rem);max-width:62ch}
+.small{font-size:.84rem;color:var(--ink-3);line-height:1.55}
+.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.stack{display:flex;flex-direction:column}
+.g12{gap:12px}.g16{gap:16px}.g20{gap:20px}.g28{gap:28px}.g40{gap:40px}
+
+/* ---------- nav ---------- */
+header.nav{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:50;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(1.4) blur(12px);
+  border-bottom:1px solid var(--line-soft);
+}
+.nav-in{display:flex;align-items:center;gap:20px;min-height:62px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;color:var(--ink);font-weight:800;letter-spacing:-.02em;font-size:1.02rem}
+.brand img{width:30px;height:30px;border-radius:8px;display:block}
+.ai-mark{background:linear-gradient(100deg,var(--g1),var(--g2) 52%,var(--g3));-webkit-background-clip:text;background-clip:text;color:transparent}
+.nav-links{display:none;gap:22px;margin-left:auto;align-items:center}
+.nav-links a{color:var(--ink-2);font-size:.9rem;font-weight:500}
+.nav-links a:hover{color:var(--ink)}
+.nav-cta{margin-left:auto}
+@media(min-width:900px){.nav-links{display:flex}.nav-cta{margin-left:4px}}
+
+.btn{display:inline-flex;align-items:center;gap:9px;padding:11px 20px;border-radius:9px;font-weight:600;font-size:.93rem;border:1px solid transparent;cursor:pointer;transition:background .18s,border-color .18s,transform .18s}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-deep)}
+.btn-ghost{background:var(--surface);border-color:var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+@media(prefers-reduced-motion:no-preference){.btn:active{transform:translateY(1px)}}
+
+/* ---------- hero ---------- */
+.hero{padding-top:clamp(40px,6vw,72px);padding-bottom:clamp(48px,7vw,88px)}
+.hero-grid{display:grid;gap:clamp(32px,5vw,56px);align-items:center}
+@media(min-width:1000px){.hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,1.06fr)}}
+.tagline-rule{display:flex;align-items:center;gap:12px;color:var(--ink-2);font-weight:600;font-size:.95rem;letter-spacing:-.01em}
+.tagline-rule::before{content:"";width:34px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--g1),var(--g2),var(--g3));flex:none}
+.hero-actions{display:flex;flex-wrap:wrap;gap:12px}
+.pill{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;font-size:.73rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--line);background:var(--tint);color:var(--accent-deep)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+
+/* ---------- browser mockup ---------- */
+.mock{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.mock-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line-soft);background:var(--tint)}
+.mock-dots{display:flex;gap:6px}
+.mock-dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.mock-url{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:.74rem;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mock-ext{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:var(--accent-deep)}
+.mock-ext img{width:17px;height:17px;border-radius:5px;display:block}
+.mock-body{padding:16px;display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.post{border:1px solid var(--line-soft);border-radius:11px;padding:12px;background:var(--surface);position:relative;min-width:0}
+.post .ph{height:8px;border-radius:4px;background:var(--line-soft)}
+.post .ph.w70{width:70%}.post .ph.w45{width:45%}.post .ph.w85{width:85%}
+.thumb{height:62px;border-radius:8px;margin-bottom:10px;background:linear-gradient(135deg,var(--tint),var(--line-soft))}
+.post.flag .thumb{background:linear-gradient(135deg,#C9DCF0,#AFC8E4)}
+.post .veil{position:absolute;inset:0;border-radius:11px;display:none;align-items:center;justify-content:center;flex-direction:column;gap:6px;background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(7px);text-align:center;padding:10px}
+.post.flag.on .veil{display:flex}
+.veil-label{font-size:.72rem;font-weight:700;color:var(--accent-deep);letter-spacing:.02em}
+.veil-sub{font-size:.66rem;color:var(--ink-3)}
+.mock-foot{border-top:1px solid var(--line-soft);padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.mock-foot-label{font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);width:100%}
+.tog{display:inline-flex;align-items:center;gap:7px;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);font:inherit;font-size:.76rem;font-weight:600;cursor:pointer;transition:all .16s}
+.tog[aria-pressed="true"]{background:var(--tint);border-color:var(--accent);color:var(--accent-deep)}
+.tog i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block;flex:none}
+.tog[aria-pressed="true"] i{background:var(--accent)}
+.mock-note{font-size:.74rem;color:var(--ink-3);margin-top:10px;text-align:center}
+
+/* ---------- generic grids / cards ---------- */
+.grid{display:grid;gap:18px}
+.c2{grid-template-columns:1fr}
+.c3{grid-template-columns:1fr}
+@media(min-width:720px){.c2{grid-template-columns:repeat(2,minmax(0,1fr))}.c3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:1000px){.c3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:22px;min-width:0;display:flex;flex-direction:column;gap:9px}
+.band .card{background:var(--bg)}
+.card p{color:var(--ink-2);font-size:.93rem}
+.icon{width:38px;height:38px;border-radius:10px;background:var(--tint);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:var(--accent);flex:none}
+.icon svg{width:19px;height:19px;display:block}
+
+/* ---------- research ---------- */
+.study{display:flex;flex-direction:column;gap:18px}
+.donut-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.donut{width:118px;height:118px;flex:none}
+.donut text{font-family:Inter,sans-serif;font-variant-numeric:tabular-nums}
+.stat-list{display:flex;flex-direction:column;gap:9px;min-width:0;flex:1}
+.stat{display:flex;gap:11px;align-items:baseline}
+.stat b{font-size:1.18rem;font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;min-width:62px}
+.stat span{font-size:.86rem;color:var(--ink-2);line-height:1.45}
+.note{border:1px solid var(--line);border-left:3px solid var(--accent);background:var(--tint);border-radius:9px;padding:14px 16px;font-size:.87rem;color:var(--ink-2)}
+
+/* ---------- steps / flow ---------- */
+.step-n{width:28px;height:28px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.84rem;flex:none}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:center;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.flow-node{padding:9px 15px;border-radius:9px;border:1px solid var(--line);background:var(--tint);font-size:.85rem;font-weight:600;color:var(--ink)}
+.flow-arrow{color:var(--accent);font-weight:700}
+
+/* ---------- demo placeholders ---------- */
+.ph-frame{border:1px dashed var(--line);border-radius:12px;background:var(--tint);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;text-align:center;padding:26px 18px;min-height:168px}
+.ph-frame .ph-t{font-weight:700;font-size:.92rem;color:var(--ink)}
+.ph-frame .ph-s{font-size:.79rem;color:var(--ink-3);max-width:34ch}
+.ph-video{min-height:clamp(220px,34vw,340px)}
+.play{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--accent)}
+
+/* ---------- demonstration video ---------- */
+.video-embed{position:relative;width:100%;max-width:960px;aspect-ratio:16/9;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--video-ground);box-shadow:0 2px 8px 0 rgba(63,69,81,.16)}
+.video-embed iframe{position:absolute;inset:0;width:100%;height:100%;border:none;padding:0;margin:0;display:block}
+@supports not (aspect-ratio:16/9){.video-embed{height:0;padding-top:56.25%}}
+
+.video{margin:0;display:flex;flex-direction:column;gap:13px;align-items:center;width:100%}
+.video-frame{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:15px;width:100%;max-width:960px;aspect-ratio:16/9;border-radius:14px;border:1px solid var(--line);background:var(--video-ground);overflow:hidden;text-decoration:none;isolation:isolate}
+.video-frame::after{content:"";position:absolute;inset:0;background:radial-gradient(62% 72% at 50% 40%,rgba(127,178,240,.20),transparent 72%);pointer-events:none}
+.video-play{width:clamp(52px,7vw,70px);height:clamp(52px,7vw,70px);border-radius:50%;background:linear-gradient(135deg,var(--g1),var(--g2) 55%,var(--g3));display:flex;align-items:center;justify-content:center;color:#0E1B2E;position:relative;z-index:1;flex:none}
+.video-play svg{width:42%;height:42%;margin-left:8%}
+.video-meta{display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;z-index:1;padding-inline:20px;text-align:center}
+.video-title{color:var(--video-fg);font-weight:700;font-size:clamp(.98rem,2.1vw,1.28rem);letter-spacing:-.02em;line-height:1.25}
+.video-by{color:var(--video-sub);font-size:.82rem}
+.video figcaption{max-width:62ch;text-align:center}
+.video-frame:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+@media(prefers-reduced-motion:no-preference){
+  .video-play{transition:transform .22s}
+  .video-frame:hover .video-play{transform:scale(1.07)}
+}
+
+/* ---------- timeline ---------- */
+.tl{display:grid;gap:14px}
+@media(min-width:860px){.tl{grid-template-columns:repeat(5,minmax(0,1fr))}}
+.tl-item{border:1px solid var(--line);border-radius:11px;padding:15px;background:var(--surface);display:flex;flex-direction:column;gap:7px;min-width:0}
+.tl-k{font-size:.68rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.tl-item h4{font-size:.93rem;font-weight:700;letter-spacing:-.01em}
+
+/* ---------- quote ---------- */
+.quote{border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:clamp(22px,4vw,34px);display:flex;flex-direction:column;gap:14px}
+.quote blockquote{margin:0;font-size:clamp(1.1rem,2.3vw,1.5rem);font-weight:600;letter-spacing:-.02em;line-height:1.35;color:var(--ink)}
+
+/* ---------- tech list ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:9px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 13px;font-size:.85rem;font-weight:600;color:var(--ink)}
+.band .chip{background:var(--bg)}
+
+/* ---------- cta band ---------- */
+.cta{border:1px solid var(--line);border-radius:16px;background:var(--surface);padding:clamp(26px,4.5vw,44px);display:flex;flex-direction:column;gap:18px;align-items:flex-start}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);background:var(--surface);padding-block:36px 44px}
+.foot-grid{display:flex;flex-wrap:wrap;gap:24px;justify-content:space-between;align-items:flex-start}
+.foot-nav{display:flex;flex-wrap:wrap;gap:8px 18px}
+.foot-nav a{color:var(--ink-2);font-size:.88rem;font-weight:500}
+.foot-nav a:hover{color:var(--accent)}
+.disclaim{border-top:1px solid var(--line-soft);margin-top:26px;padding-top:18px;font-size:.8rem;color:var(--ink-3);max-width:70ch}
+
+@media(prefers-reduced-motion:no-preference){
+  .card,.tl-item{transition:border-color .2s}
+  .card:hover{border-color:var(--accent)}
+}
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#home">
+      <img src="mindshield-icon.png" alt="">
+      MindShield&nbsp;<span class="ai-mark">AI</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#problem">Research</a>
+      <a href="#solution">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#demo">Demo</a>
+      <a href="#technology">Technology</a>
+      <a href="#story">About</a>
+    </nav>
+    <a class="btn btn-primary nav-cta" href="https://github.com/Beamer-A/MindShield-AI/tree/main" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="home">
+  <div class="wrap hero-grid">
+    <div class="stack g20">
+      <span class="pill"><span class="dot"></span>Student-built research prototype</span>
+      <h1>Take Control of What You See Online.</h1>
+      <p class="lede">MindShield AI uses artificial intelligence to identify and filter potentially harmful content while giving teenagers the freedom to browse, learn, and connect.</p>
+      <p class="tagline-rule">Your Internet. Your Mind. Your Choice.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#solution">Explore Features</a>
+        <a class="btn btn-ghost" href="https://github.com/Beamer-A/MindShield-AI/tree/main" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          View on GitHub
+        </a>
+      </div>
+      <p class="small">MindShield AI is a student-developed, research-inspired prototype. It was built to explore whether AI can give teenagers finer control over their own browsing, rather than to replace parental controls or professional support.</p>
+    </div>
+
+    <div>
+      <div class="mock" id="mock">
+        <div class="mock-bar">
+          <span class="mock-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span class="mock-url">a social feed you already scroll</span>
+          <span class="mock-ext"><img src="mindshield-icon.png" alt="">ON</span>
+        </div>
+        <div class="mock-body">
+          <article class="post"><div class="thumb"></div><div class="stack g12"><span class="ph w85"></span><span class="ph w45"></span></div></article>
+          <article class="post flag on" data-cat="violence">
+            <div class="thumb"></div><div class="stack g12"><span class="ph w70"></span><span class="ph w45"></span></div>
+            <div class="veil"><span class="veil-label">Hidden — graphic imagery</span><span class="veil-sub">Tap to view anyway</span></div>
+          </article>
+          <article class="post flag on" data-cat="bullying">
+            <div class="stack g12"><span class="ph w85"></span><span class="ph w70"></span><span class="ph w45"></span></div>
+            <div class="veil"><span class="veil-label">Hidden — harassing language</span><span class="veil-sub">Tap to view anyway</span></div>
+          </article>
+          <article class="post"><div class="stack g12"><span class="ph w70"></span><span class="ph w85"></span><span class="ph w45"></span></div></article>
+        </div>
+        <div class="mock-foot">
+          <span class="mock-foot-label">Your filters</span>
+          <button class="tog" type="button" aria-pressed="true" data-cat="violence"><i></i>Violence</button>
+          <button class="tog" type="button" aria-pressed="true" data-cat="bullying"><i></i>Cyberbullying</button>
+          <button class="tog" type="button" aria-pressed="false" data-cat="body"><i></i>Body image</button>
+        </div>
+      </div>
+      <p class="mock-note">Interactive illustration of the filtering concept — toggle a category to see how it behaves. Not a screenshot of the extension.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROBLEM ============ -->
+<section class="band" id="problem">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">The problem</span>
+      <h2>The Internet Connects Us. But Not Everything We See Is Healthy.</h2>
+      <p class="lede">Teenagers spend hours a day in feeds they did not design. Alongside everything useful, those feeds carry graphic imagery, harassment, unrealistic messaging about bodies and appearance, and material related to self-harm — usually with no warning and no way to opt out of one post without leaving the whole platform.</p>
+      <p class="lede">MindShield AI grew out of two surveys conducted in a middle school, which the student developer designed and ran before writing any code.</p>
+    </div>
+
+    <div class="grid c2">
+      <article class="card study">
+        <div class="stack g12">
+          <span class="eyebrow">Study 1 · Smartphone use</span>
+          <h3>Smartphone Application-Based Addiction Scale (SABAS)</h3>
+          <p>148 middle school students surveyed.</p>
+        </div>
+        <div class="donut-row">
+          <svg class="donut" viewBox="0 0 120 120" role="img" aria-label="41 percent of 148 students at moderate-to-severe risk">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--line)" stroke-width="13"></circle>
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--accent)" stroke-width="13" stroke-linecap="round"
+                    stroke-dasharray="123.6 301.6" transform="rotate(-90 60 60)"></circle>
+            <text x="60" y="58" text-anchor="middle" font-size="25" font-weight="800" fill="var(--ink)">41%</text>
+            <text x="60" y="76" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--ink-3)">at risk</text>
+          </svg>
+          <div class="stat-list">
+            <div class="stat"><b>41%</b><span>identified as being at moderate-to-severe risk for problematic smartphone use</span></div>
+            <div class="stat"><b>148</b><span>students surveyed</span></div>
+          </div>
+        </div>
+        <p class="small">Higher risk was associated with compulsive phone checking, increased smartphone use, reduced physical activity, and smartphone-related symptoms.</p>
+      </article>
+
+      <article class="card study">
+        <div class="stack g12">
+          <span class="eyebrow">Study 2 · Adolescent mental health</span>
+          <h3>Patient Health Questionnaire-9 (PHQ-9)</h3>
+          <p>147 middle school students surveyed.</p>
+        </div>
+        <div class="donut-row">
+          <svg class="donut" viewBox="0 0 120 120" role="img" aria-label="50.3 percent of 147 students reported at least mild depressive symptoms">
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--line)" stroke-width="13"></circle>
+            <circle cx="60" cy="60" r="48" fill="none" stroke="var(--accent)" stroke-width="13" stroke-linecap="round"
+                    stroke-dasharray="151.7 301.6" transform="rotate(-90 60 60)"></circle>
+            <text x="60" y="58" text-anchor="middle" font-size="23" font-weight="800" fill="var(--ink)">50.3%</text>
+            <text x="60" y="76" text-anchor="middle" font-size="9.5" font-weight="600" fill="var(--ink-3)">mild or above</text>
+          </svg>
+          <div class="stat-list">
+            <div class="stat"><b>50.3%</b><span>reported at least mild depressive symptoms</span></div>
+            <div class="stat"><b>13.6%</b><span>scored in the moderately severe or severe range</span></div>
+            <div class="stat"><b>19.3%</b><span>reported some level of thoughts related to self-harm or suicide</span></div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <p class="note"><strong>Scientific note.</strong> These observational studies did not establish that online content caused the reported mental health outcomes. They describe what students reported at one point in time, and they motivated the project — they do not prove that filtering content changes these measures.</p>
+  </div>
+</section>
+
+<!-- ============ SOLUTION ============ -->
+<section id="solution">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">The solution</span>
+      <h2>A Smarter Way to Experience the Internet.</h2>
+      <p class="lede">Traditional parental controls work at the level of a whole website: a domain is either allowed or blocked. MindShield AI works at the level of individual content. A page stays open; the specific image or message a user chose to filter is blurred or hidden, and everything else stays exactly as it was.</p>
+    </div>
+
+    <div class="grid c3">
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></div>
+        <h3>Violence &amp; disturbing imagery</h3>
+        <p>Identifies potentially graphic, violent, or frightening images on supported pages.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17.9 17.9A10.1 10.1 0 0 1 12 20c-7 0-11-8-11-8a18.5 18.5 0 0 1 5.1-6M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.2 3.2M1 1l22 22"/></svg></div>
+        <h3>Sexual &amp; explicit content</h3>
+        <p>Detects potentially explicit visual material before it is displayed in full.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5a8.4 8.4 0 0 1-.9-3.9 8.4 8.4 0 0 1 9-8.4 8.4 8.4 0 0 1 8 8.3Z"/><path d="M9 9.5h.01M15 9.5h.01M9 14.5s1.2-1 3-1 3 1 3 1"/></svg></div>
+        <h3>Cyberbullying</h3>
+        <p>Identifies potentially harmful messages, insults, and harassment in page text.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8Z"/></svg></div>
+        <h3>Self-harm content</h3>
+        <p>Detects selected language associated with self-harm and related harmful messaging.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 9.5h.01M15.5 9.5h.01M8.5 15.5c1-.8 2.1-1.2 3.5-1.2s2.5.4 3.5 1.2"/></svg></div>
+        <h3>Body-image messaging</h3>
+        <p>Identifies potentially harmful messages about appearance, body image, and unrealistic expectations.</p>
+      </article>
+      <article class="card" style="background:var(--tint);border-color:var(--line)">
+        <h3>You decide what applies</h3>
+        <p>Each category is a switch. Turn on the ones that matter to you, leave the rest off, and change your mind whenever you want. Filtering is a preference, not a punishment.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="band" id="how">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">How it works</span>
+      <h2>Three steps, and then it stays out of the way.</h2>
+    </div>
+
+    <div class="grid c3">
+      <article class="card">
+        <div style="display:flex;gap:11px;align-items:center"><span class="step-n">1</span><h3>Choose your filters</h3></div>
+        <p>Open the extension and pick the content categories you want filtered. Nothing is switched on for you by default except the ones you select.</p>
+      </article>
+      <article class="card">
+        <div style="display:flex;gap:11px;align-items:center"><span class="step-n">2</span><h3>Browse normally</h3></div>
+        <p>MindShield AI analyzes supported images and text on pages as you browse. You do not change how you use the internet.</p>
+      </article>
+      <article class="card">
+        <div style="display:flex;gap:11px;align-items:center"><span class="step-n">3</span><h3>Stay in control</h3></div>
+        <p>Content matching your selected categories is blurred or hidden. You can still choose to view it, and you can switch filtering off at any time.</p>
+      </article>
+    </div>
+
+    <div class="flow" role="img" aria-label="Flow: webpage content, then AI analysis, then user preferences, then content filtering">
+      <span class="flow-node">Webpage content</span><span class="flow-arrow" aria-hidden="true">→</span>
+      <span class="flow-node">AI analysis</span><span class="flow-arrow" aria-hidden="true">→</span>
+      <span class="flow-node">Your preferences</span><span class="flow-arrow" aria-hidden="true">→</span>
+      <span class="flow-node">Content filtering</span>
+    </div>
+
+    <p class="note"><strong>How the prototype runs today.</strong> A Chrome extension reads supported page content and passes it to a Python AI backend running on the same computer. Image and text analysis work in the current prototype; video-frame analysis is experimental and not reliable yet.</p>
+  </div>
+</section>
+
+<!-- ============ DEMO ============ -->
+<section id="demo">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">Demonstration</span>
+      <h2>See MindShield AI in Action.</h2>
+      <p class="lede">Watch the full walkthrough of the prototype below. The screenshot slots underneath are still reserved for real captures from the working build — nothing on this page is a mock-up of a feature that does not exist.</p>
+    </div>
+
+    <figure class="video">
+      <div class="video-embed">
+        <iframe loading="lazy" src="https://www.canva.com/design/DAHYZEJ8mzI/ldwrsBYES4aurwOYiQrlPQ/watch?embed"
+                title="What if the internet adapted to you? — the MindShield AI demonstration"
+                allowfullscreen="allowfullscreen" allow="fullscreen"></iframe>
+      </div>
+      <figcaption class="small">“What if the internet adapted to you?” · by AA. The player streams from the original Canva project, so any edit made there appears here with nothing to re-upload. <a href="https://www.canva.com/design/DAHYZEJ8mzI/ldwrsBYES4aurwOYiQrlPQ/watch?utm_content=DAHYZEJ8mzI&amp;utm_campaign=designshare&amp;utm_medium=embeds&amp;utm_source=link" target="_blank" rel="noopener">Open on Canva</a></figcaption>
+    </figure>
+
+    <div class="grid c3">
+      <div class="ph-frame"><span class="ph-t">Extension settings</span><span class="ph-s">Category switches and on/off control.</span></div>
+      <div class="ph-frame"><span class="ph-t">Image filtering</span><span class="ph-s">A supported page with imagery blurred.</span></div>
+      <div class="ph-frame"><span class="ph-t">Cyberbullying detection</span><span class="ph-s">Harassing text identified in page content.</span></div>
+      <div class="ph-frame"><span class="ph-t">YouTube analysis <em>(experimental)</em></span><span class="ph-s">Video-frame analysis in progress.</span></div>
+      <div class="ph-frame"><span class="ph-t">Filtering dashboard</span><span class="ph-s">Summary of filtering activity.</span></div>
+      <div class="ph-frame"><span class="ph-t">Your screenshot here</span><span class="ph-s">Drop in any additional captures from the build.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PRIVACY ============ -->
+<section class="band" id="privacy">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">Privacy &amp; personalization</span>
+      <h2>Your Browsing. Your Preferences.</h2>
+      <p class="lede">MindShield AI is built around the idea that the person browsing should be the person deciding. Both AI models run on the user's own computer, so the pages being analyzed are never sent anywhere.</p>
+    </div>
+    <div class="grid c2">
+      <article class="card"><h3>You pick the categories</h3><p>Filtering applies only to the categories you select. Everything else is left untouched.</p></article>
+      <article class="card"><h3>You can turn it off</h3><p>Protection can be disabled at any time, for a session or entirely, without uninstalling anything.</p></article>
+      <article class="card"><h3>Analysis runs on your machine</h3><p>Both models load into a Python backend on your own computer. There is no API key, no account, and no third-party service in the loop.</p></article>
+      <article class="card"><h3>A dashboard, not a log of you</h3><p>The dashboard summarizes filtering activity. The prototype is designed to avoid intentionally storing original browsing content or detailed browsing histories.</p></article>
+    </div>
+    <p class="note"><strong>What this does not claim.</strong> MindShield AI is an experimental prototype. It does not claim complete anonymity or absolute privacy, and its design has not been independently audited.</p>
+  </div>
+</section>
+
+<!-- ============ STORY ============ -->
+<section id="story">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">The story</span>
+      <h2>From Research to Real-World Innovation.</h2>
+      <p class="lede">MindShield AI was created by a teenage student researcher who ran two surveys on adolescent smartphone use and mental health in a middle school. The findings did not point toward telling teenagers to use their phones less — they pointed toward giving them more control over what those phones show them.</p>
+    </div>
+
+    <div class="quote">
+      <blockquote>“What if we could use artificial intelligence to make the internet healthier instead of simply telling teenagers to use it less?”</blockquote>
+      <p class="small">The project was developed for the Congressional App Challenge.</p>
+    </div>
+
+    <div class="tl">
+      <div class="tl-item"><span class="tl-k">Step 1</span><h4>Research</h4><p class="small">Two school surveys: SABAS and PHQ-9.</p></div>
+      <div class="tl-item"><span class="tl-k">Step 2</span><h4>Identify the problem</h4><p class="small">Whole-site blocking does not match how teenagers actually browse.</p></div>
+      <div class="tl-item"><span class="tl-k">Step 3</span><h4>Develop the app</h4><p class="small">A Chrome extension plus a local AI backend.</p></div>
+      <div class="tl-item"><span class="tl-k">Step 4</span><h4>Test the prototype</h4><p class="small">Image and text filtering working; video still experimental.</p></div>
+      <div class="tl-item"><span class="tl-k">Step 5</span><h4>Future improvements</h4><p class="small">Accuracy, reach, and a formal usability study.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TECHNOLOGY ============ -->
+<section class="band" id="technology">
+  <div class="wrap stack g28">
+    <div class="stack g16">
+      <span class="eyebrow">The technology</span>
+      <h2>Built with Artificial Intelligence.</h2>
+      <p class="lede">The Chrome extension is JavaScript, HTML and CSS. It watches a page as it loads and as new content appears, then passes supported images and text to a Python AI backend running on the same computer. Two models do the classifying, and both of them run on that machine.</p>
+    </div>
+
+    <div class="grid c3">
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m3.5 17 4.8-4.3a2 2 0 0 1 2.7 0L20.5 20"/></svg></div>
+        <h3>CLIP for images and video frames</h3>
+        <p>Pictures go to CLIP, a vision-language model. It compares each image against short text descriptions of the categories the user has switched on &mdash; zero-shot classification, so it needs no training examples of its own.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9 9 0 0 1-3.8-.8L3 21l1.9-5a8.4 8.4 0 0 1-.9-3.9 8.4 8.4 0 0 1 9-8.4 8.4 8.4 0 0 1 8 8.3Z"/><path d="M8.5 11.5h7M8.5 14.5h4"/></svg></div>
+        <h3>Natural language classification for text</h3>
+        <p>Page text is run through natural language classification to pick up cyberbullying, harassment, and self-harm-related messaging before it is displayed.</p>
+      </article>
+      <article class="card">
+        <div class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg></div>
+        <h3>Everything runs locally</h3>
+        <p>Both models load into the Python backend on the user&rsquo;s own computer. Nothing is sent to an outside service, which is why no API key or account is needed to run it.</p>
+      </article>
+    </div>
+
+    <div class="grid c2">
+      <article class="card">
+        <h3>What it is built from</h3>
+        <div class="chips" style="margin-top:4px">
+          <span class="chip">Chrome Extension APIs</span>
+          <span class="chip">JavaScript</span>
+          <span class="chip">HTML &amp; CSS</span>
+          <span class="chip">Python backend</span>
+          <span class="chip">CLIP <em>(vision-language model)</em></span>
+          <span class="chip">Natural language classification</span>
+          <span class="chip">Video-frame analysis <em>(experimental)</em></span>
+          <span class="chip">Customizable filtering controls</span>
+        </div>
+      </article>
+      <article class="card">
+        <h3>Problems worth solving</h3>
+        <p>Building it meant working through browser permissions, content that loads after a page is already open, capturing frames out of video players, keeping analysis fast enough not to interrupt browsing, and getting the extension and the Python backend to talk to each other reliably.</p>
+      </article>
+    </div>
+
+    <p class="note"><strong>Honest about what is unproven.</strong> Detection performance has not been formally measured, so this page lists no accuracy figures. The prototype misses content, and it flags material that is harmless.</p>
+    <p class="note"><strong>What a next version would add.</strong> A future build would let people choose their engine: stay fully local, as it works today, or opt into a frontier model using retrieval-augmented generation, few-shot prompting and constrained outputs. The local option keeps browsing private; the frontier option would generalise to almost any social platform or streaming video. That choice has not been built yet.</p>
+  </div>
+</section>
+
+<!-- ============ GITHUB ============ -->
+<section id="github">
+  <div class="wrap">
+    <div class="cta">
+      <span class="eyebrow">Project access</span>
+      <h2>Explore the Project.</h2>
+      <p class="lede">The source code, setup instructions, and development history are public. MindShield AI is currently an experimental student-developed prototype, and the repository reflects that — it is a working research project, not a shipped product.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="https://github.com/Beamer-A/MindShield-AI/tree/main" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          View on GitHub
+        </a>
+        <a class="btn btn-ghost" href="#demo">See the demonstration</a>
+      </div>
+      <p class="small">github.com/Beamer-A/MindShield-AI</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div class="stack g12">
+        <span class="brand"><img src="mindshield-icon.png" alt="">MindShield&nbsp;<span class="ai-mark">AI</span></span>
+        <p class="tagline-rule" style="font-size:.9rem">Your Internet. Your Mind. Your Choice.</p>
+        <p class="small">Smarter filtering. Safer browsing. Your choice.</p>
+      </div>
+      <nav class="foot-nav" aria-label="Footer">
+        <a href="#home">Home</a>
+        <a href="#solution">Features</a>
+        <a href="#problem">Research</a>
+        <a href="#technology">Technology</a>
+        <a href="#story">About</a>
+        <a href="https://github.com/Beamer-A/MindShield-AI/tree/main" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+    <p class="disclaim">MindShield AI is an experimental content-filtering prototype and is not a substitute for professional mental health support. If you or someone you know is struggling, please reach out to a trusted adult or a local support service.</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var togs = document.querySelectorAll('.tog');
+  function apply(cat, on){
+    document.querySelectorAll('.post.flag[data-cat="'+cat+'"]').forEach(function(p){
+      p.classList.toggle('on', on);
+    });
+  }
+  togs.forEach(function(t){
+    t.addEventListener('click', function(){
+      var on = t.getAttribute('aria-pressed') !== 'true';
+      t.setAttribute('aria-pressed', String(on));
+      apply(t.dataset.cat, on);
+    });
+  });
+  document.querySelectorAll('.post.flag .veil').forEach(function(v){
+    v.addEventListener('click', function(){ v.closest('.post').classList.remove('on'); });
+  });
+})();
+</script>
+</body>
+</html>
